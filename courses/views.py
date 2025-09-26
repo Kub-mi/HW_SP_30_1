@@ -1,5 +1,5 @@
 from rest_framework import viewsets, generics
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 
 from courses.models import Course, Lesson
 from courses.serializers import CourseSerializer, LessonSerializer
@@ -11,8 +11,14 @@ class CourseViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return (
             Course.objects
-            .all()
-            .annotate(lesson_count=Count("lessons"))
+            .annotate(lesson_count=Count("lessons", distinct=True))
+            .prefetch_related(
+                Prefetch(
+                    "lessons",
+                    queryset=Lesson.objects.only("id", "title", "description", "link", "course_id")
+                    .order_by("id")  # или по нужному полю
+                )
+            )
         )
 
 
