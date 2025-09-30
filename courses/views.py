@@ -1,4 +1,5 @@
 from rest_framework import viewsets, generics
+from django.db.models import Count, Prefetch
 
 from courses.models import Course, Lesson
 from courses.serializers import CourseSerializer, LessonSerializer
@@ -6,7 +7,19 @@ from courses.serializers import CourseSerializer, LessonSerializer
 
 class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
-    queryset = Course.objects.all()
+
+    def get_queryset(self):
+        return (
+            Course.objects
+            .annotate(lesson_count=Count("lessons", distinct=True))
+            .prefetch_related(
+                Prefetch(
+                    "lessons",
+                    queryset=Lesson.objects.only("id", "title", "description", "link", "course_id")
+                    .order_by("id")  # или по нужному полю
+                )
+            )
+        )
 
 
 class LessonCreateAPIView(generics.CreateAPIView):
