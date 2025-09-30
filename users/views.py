@@ -8,7 +8,16 @@ from rest_framework.filters import OrderingFilter
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
-    queryset = User.objects.all()
+    queryset = User.objects.all().order_by('id')
+    permission_classes = [permissions.IsAuthenticated, IsSelfOrAdmin]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return super().get_queryset()
+        if getattr(self, 'action', None) == 'list':
+            return User.objects.filter(pk=user.pk)
+        return super().get_queryset()
 
 
 class PaymentCreateAPIView(generics.CreateAPIView):
@@ -40,16 +49,3 @@ class PaymentDestroyAPIView(generics.DestroyAPIView):
 class RegisterAPIView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]  # регистрация открыта
-
-class UserViewSet(viewsets.ModelViewSet):
-    serializer_class = UserSerializer
-    queryset = User.objects.all().order_by('id')
-    permission_classes = [permissions.IsAuthenticated, IsSelfOrAdmin]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_staff:
-            return super().get_queryset()
-        if getattr(self, 'action', None) == 'list':
-            return User.objects.filter(pk=user.pk)
-        return super().get_queryset()
