@@ -16,14 +16,13 @@ class IsOwnerOrStaff(BasePermission):
         return request.user.is_staff or getattr(obj, "owner", None) == request.user
 
 class IsNotModer(BasePermission):
-    """Разрешить, только если пользователь НЕ модератор."""
     group_name = "moderators"
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated and \
                not request.user.groups.filter(name=self.group_name).exists()
 
 class IsModerOrOwnerOrStaff(BasePermission):
-    """Модератор ИЛИ владелец/staff."""
+    """Разрешить доступ, если модератор ИЛИ владелец/staff."""
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated
     def has_object_permission(self, request, view, obj):

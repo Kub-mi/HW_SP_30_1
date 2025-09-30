@@ -11,31 +11,42 @@ class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
 
     def get_permissions(self):
-        # Базово требуем JWT
+        # Базовое требование: JWT
         if self.action in ("list", "retrieve"):
+            # смотреть: модерам любой объект; немодерам — фильтруем в get_queryset
             perms = [permissions.IsAuthenticated]
         elif self.action in ("update", "partial_update"):
+            # редактировать: модератор ИЛИ владелец/staff
             perms = [permissions.IsAuthenticated, IsModerOrOwnerOrStaff]
         elif self.action == "create":
-            perms = [permissions.IsAuthenticated, IsNotModer]          # модераторам нельзя
+            # модераторам создавать нельзя
+            perms = [permissions.IsAuthenticated, IsNotModer]
         elif self.action == "destroy":
-            perms = [permissions.IsAuthenticated, IsNotModer, IsOwnerOrStaff]  # модераторам нельзя, только owner/staff
+            # модераторам удалять нельзя; только владелец/staff
+            perms = [permissions.IsAuthenticated, IsOwnerOrStaff]
         else:
             perms = [permissions.IsAuthenticated]
         return [p() if isinstance(p, type) else p for p in perms]
 
     def get_queryset(self):
-        return (
+        qs = (
             Course.objects
             .annotate(lesson_count=Count("lessons", distinct=True))
             .prefetch_related(
                 Prefetch(
                     "lessons",
-                    queryset=Lesson.objects.only("id", "title", "description", "link", "course_id")
-                    .order_by("id")  # или по нужному полю
+                    queryset=Lesson.objects.only("id", "title", "description", "link", "course_id").order_by("id")
                 )
             )
         )
+        user = self.request.user
+        # Немодератор видит только свои курсы
+        if user.is_authenticated and not user.groups.filter(name="moderators").exists() and not user.is_staff:
+            return qs.filter(owner=user)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
 
 class LessonCreateAPIView(generics.CreateAPIView):
@@ -48,14 +59,21 @@ class LessonCreateAPIView(generics.CreateAPIView):
 
 class LessonListAPIView(generics.ListAPIView):
     serializer_class = LessonSerializer
-    queryset = Lesson.objects.all()
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Lesson.objects.all()
+        user = self.request.user
+        # Немодератор видит только свои уроки
+        if user.is_authenticated and not user.groups.filter(name="moderators").exists() and not user.is_staff:
+            return qs.filter(owner=user)
+        return qs
 
 
 class LessonRetrieveApiView(generics.RetrieveAPIView):
     serializer_class = LessonSerializer
     queryset = Lesson.objects.all()
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsModerOrOwnerOrStaff]
 
 
 class LessonUpdateAPIView(generics.UpdateAPIView):
@@ -66,4 +84,4 @@ class LessonUpdateAPIView(generics.UpdateAPIView):
 
 class LessonDestroyAPIView(generics.DestroyAPIView):
     queryset = Lesson.objects.all()
-    permission_classes = [permissions.IsAuthenticated, IsNotModer, IsOwnerOrStaff]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrStaff]

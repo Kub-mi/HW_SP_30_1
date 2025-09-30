@@ -1,9 +1,11 @@
 from django.db import models
+from django.conf import settings
 
 class Course(models.Model):
     title = models.CharField(max_length=150, verbose_name='название')
     preview = models.ImageField(upload_to='courses/', blank=True, null=True, verbose_name='превью')
     description = models.TextField(verbose_name='описание')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='courses', null=True, blank=True)
 
     def __str__(self):
         return f'{self.title}'
@@ -19,6 +21,8 @@ class Lesson(models.Model):
     description = models.TextField(verbose_name='описание')
     preview = models.ImageField(upload_to='courses/', blank=True, null=True, verbose_name='превью')
     link = models.URLField(blank=True, null=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='lesson', null=True, blank=True)
+
 
     def __str__(self):
         return f'{self.title}'
