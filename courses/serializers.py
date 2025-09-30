@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from courses.models import Course, Lesson
+from .validators import OnlyYouTubeValidator
 
 
 class LessonShortSerializer(serializers.ModelSerializer):
@@ -27,3 +28,8 @@ class LessonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
         fields = "__all__"
+        validators = [
+            OnlyYouTubeValidator(field="video_url"),
+            # Можно добавить и для materials, если materials — одиночная ссылка:
+            # OnlyYouTubeValidator(field="materials"),
+        ]

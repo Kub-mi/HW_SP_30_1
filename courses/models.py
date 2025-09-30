@@ -31,3 +31,30 @@ class Lesson(models.Model):
         verbose_name = 'урок'
         verbose_name_plural = 'уроки'
 
+
+class Subscription(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="course_subscriptions",
+        verbose_name="пользователь",
+    )
+    course = models.ForeignKey(
+        "courses.Course",
+        on_delete=models.CASCADE,
+        related_name="subscriptions",
+        verbose_name="курс",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "подписка на курс"
+        verbose_name_plural = "подписки на курсы"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "course"], name="uniq_subscription_user_course"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} → {self.course}"

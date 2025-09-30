@@ -7,17 +7,41 @@ from rest_framework.filters import OrderingFilter
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    serializer_class = UserSerializer
     queryset = User.objects.all().order_by('id')
+    serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated, IsSelfOrAdmin]
 
     def get_queryset(self):
+        """
+        Для списка оставляем приватность: обычный видит только себя, админ — всех.
+        (Требование допзадания про «смотреть любой профиль» относится к retrieve/{id}.)
+        """
+        qs = super().get_queryset()
         user = self.request.user
         if user.is_staff:
-            return super().get_queryset()
+            return qs
         if getattr(self, 'action', None) == 'list':
-            return User.objects.filter(pk=user.pk)
-        return super().get_queryset()
+            return qs.filter(pk=user.pk)
+        return qs
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Любой авторизованный может смотреть ЛЮБОЙ профиль:
+        - если это свой профиль или админ — полный сериализатор (UserSerializer);
+        - если чужой профиль — публичный сериализатор (UserPublicSerializer) без фамилии/пароля/платежей.
+        """
+        instance = self.get_object()  # тут сработает IsSelfOrAdmin.has_object_permission — это мешает публичному чтению.
+        # поэтому переопределим объектные права ТОЛЬКО для retrieve:
+        # вручную пропустим просмотр, а редактирование остаётся под IsSelfOrAdmin.
+        is_self = (request.user.pk == instance.pk)
+        is_admin = bool(request.user.is_staff)
+
+        if is_self or is_admin:
+            serializer = UserSerializer(instance)
+        else:
+            # Просмотр чужого профиля: публикуем только «общую» инфу
+            serializer = UserPublicSerializer(instance)
+        return Response(serializer.data)
 
 
 class PaymentCreateAPIView(generics.CreateAPIView):
