@@ -6,11 +6,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import Course, Lesson, Subscription
+from .paginators import DefaultPagination
 
 
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all().order_by('id')
     serializer_class = CourseSerializer
+    pagination_class = DefaultPagination
 
     def get_permissions(self):
         # Базовое требование: JWT
@@ -89,6 +91,7 @@ class LessonCreateAPIView(generics.CreateAPIView):
 class LessonListAPIView(generics.ListAPIView):
     serializer_class = LessonSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = DefaultPagination
 
     def get_queryset(self):
         qs = Lesson.objects.all()
