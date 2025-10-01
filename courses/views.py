@@ -94,9 +94,8 @@ class LessonListAPIView(generics.ListAPIView):
     pagination_class = DefaultPagination
 
     def get_queryset(self):
-        qs = Lesson.objects.all()
+        qs = Lesson.objects.all().order_by("id")  # ← добавь order_by
         user = self.request.user
-        # Немодератор видит только свои уроки
         if user.is_authenticated and not user.groups.filter(name="moderators").exists() and not user.is_staff:
             return qs.filter(owner=user)
         return qs
