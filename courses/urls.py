@@ -4,7 +4,7 @@ from courses.apps import CoursesConfig
 from rest_framework.routers import DefaultRouter
 
 from courses.views import CourseViewSet, LessonListAPIView, LessonCreateAPIView, LessonUpdateAPIView, \
-    LessonRetrieveApiView, LessonDestroyAPIView
+    LessonRetrieveApiView, LessonDestroyAPIView, CourseSubscriptionAPIView
 
 app_name = CoursesConfig.name
 

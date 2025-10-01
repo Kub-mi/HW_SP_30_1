@@ -1,9 +1,11 @@
-from rest_framework import viewsets, generics, permissions
-from django.db.models import Count, Prefetch
-
-from courses.models import Course, Lesson
-from courses.permissions import IsModer, IsOwnerOrStaff, IsNotModer, IsModerOrOwnerOrStaff
+from rest_framework import viewsets, generics, permissions, status
+from courses.permissions import IsOwnerOrStaff, IsNotModer, IsModerOrOwnerOrStaff
 from courses.serializers import CourseSerializer, LessonSerializer
+from django.db.models import Count, Prefetch, Exists, OuterRef
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
+from .models import Course, Lesson, Subscription
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -38,15 +40,42 @@ class CourseViewSet(viewsets.ModelViewSet):
                     queryset=Lesson.objects.only("id", "title", "description", "link", "course_id").order_by("id")
                 )
             )
+            .order_by("id")
         )
+
         user = self.request.user
-        # Немодератор видит только свои курсы
-        if user.is_authenticated and not user.groups.filter(name="moderators").exists() and not user.is_staff:
-            return qs.filter(owner=user)
+        if user.is_authenticated:
+            # Аннотируем признак подписки без N+1
+            subs = Subscription.objects.filter(course_id=OuterRef("pk"), user_id=user.id)
+            qs = qs.annotate(_is_subscribed=Exists(subs))
+
+            # Немодератор видит только свои курсы
+            if not user.groups.filter(name="moderators").exists() and not user.is_staff:
+                qs = qs.filter(owner=user)
+
         return qs
 
-    def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
+    def subscription(self, request, pk=None):
+        """
+        POST /api/v1/course/<id>/subscription/
+        Тоггл подписки текущего пользователя на курс.
+        """
+        course_item = self.get_object()
+        qs = Subscription.objects.filter(user=request.user, course=course_item)
+
+        if qs.exists():
+            qs.delete()
+            return Response(
+                {"message": "подписка удалена", "course": course_item.id, "is_subscribed": False},
+                status=status.HTTP_200_OK
+            )
+
+        Subscription.objects.get_or_create(user=request.user, course=course_item)
+        return Response(
+            {"message": "подписка добавлена", "course": course_item.id, "is_subscribed": True},
+            status=status.HTTP_200_OK
+        )
 
 
 class LessonCreateAPIView(generics.CreateAPIView):
