@@ -21,7 +21,7 @@ class Lesson(models.Model):
     description = models.TextField(verbose_name='описание')
     preview = models.ImageField(upload_to='courses/', blank=True, null=True, verbose_name='превью')
     link = models.URLField(blank=True, null=True)
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='lesson', null=True, blank=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='lessons', null=True, blank=True)
 
 
     def __str__(self):
@@ -31,3 +31,18 @@ class Lesson(models.Model):
         verbose_name = 'урок'
         verbose_name_plural = 'уроки'
 
+
+class Subscription(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="course_subscriptions", verbose_name="пользователь",)
+    course = models.ForeignKey("courses.Course", on_delete=models.CASCADE, related_name="subscriptions", verbose_name="курс",)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "подписка на курс"
+        verbose_name_plural = "подписки на курсы"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "course"], name="uniq_subscription_user_course")
+        ]
+
+    def __str__(self):
+        return f"{self.user} → {self.course}"
