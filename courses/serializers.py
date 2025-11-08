@@ -40,3 +40,9 @@ class LessonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
         fields = "__all__"
+
+
+class SubscriptionToggleResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    course = serializers.IntegerField()
+    is_subscribed = serializers.BooleanField()

@@ -21,6 +21,7 @@ class Payment(models.Model):
     class Method(models.TextChoices):
         CASH = 'cash', 'Наличные'
         TRANSFER = 'transfer', 'Перевод на счет'
+        STRIPE = 'stripe', 'Stripe'
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payments', verbose_name='Пользователь')
     paid_at = models.DateTimeField(auto_now=True, verbose_name='Дата оплаты')
@@ -28,6 +29,11 @@ class Payment(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, null=True, blank=True, related_name="payments")
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Сумма оплаты')
     method = models.CharField(max_length=20, choices=Method.choices, verbose_name="Способ оплаты",)
+    stripe_product_id = models.CharField(max_length=255, blank=True, verbose_name="ID продукта Stripe")
+    stripe_price_id = models.CharField(max_length=255, blank=True, verbose_name="ID цены Stripe")
+    stripe_session_id = models.CharField(max_length=255, blank=True, verbose_name="ID сессии Stripe")
+    stripe_checkout_url = models.URLField(blank=True, verbose_name="Ссылка на оплату")
+    stripe_status = models.CharField(max_length=50, blank=True, verbose_name="Статус Stripe")
 
     class Meta:
         verbose_name = "Платёж"
