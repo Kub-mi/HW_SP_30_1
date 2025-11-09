@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -67,4 +69,43 @@ class RegisterSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = '__all__'
+        fields = (
+            'id',
+            'user',
+            'paid_at',
+            'course',
+            'lesson',
+            'amount',
+            'method',
+            'stripe_product_id',
+            'stripe_price_id',
+            'stripe_session_id',
+            'stripe_checkout_url',
+            'stripe_status',
+        )
+        read_only_fields = (
+            'id',
+            'user',
+            'paid_at',
+            'stripe_product_id',
+            'stripe_price_id',
+            'stripe_session_id',
+            'stripe_checkout_url',
+            'stripe_status',
+        )
+        extra_kwargs = {
+            'method': {'required': False},
+        }
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        course = attrs.get('course') or getattr(self.instance, 'course', None)
+        lesson = attrs.get('lesson') or getattr(self.instance, 'lesson', None)
+        if not course and not lesson:
+            raise serializers.ValidationError('Необходимо указать курс или урок для оплаты.')
+        if course and lesson:
+            raise serializers.ValidationError('Нельзя оплачивать курс и урок одновременно.')
+        amount = attrs.get('amount')
+        if amount is not None and amount <= Decimal('0'):
+            raise serializers.ValidationError({'amount': 'Сумма оплаты должна быть больше нуля.'})
+        return attrs

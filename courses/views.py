@@ -1,6 +1,8 @@
 from rest_framework import viewsets, generics, permissions, status
+from drf_spectacular.utils import extend_schema
+
 from courses.permissions import IsOwnerOrStaff, IsNotModer, IsModerOrOwnerOrStaff
-from courses.serializers import CourseSerializer, LessonSerializer
+from courses.serializers import CourseSerializer, LessonSerializer, SubscriptionToggleResponseSerializer
 from django.db.models import Count, Prefetch, Exists, OuterRef
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -57,6 +59,12 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         return qs
 
+    @extend_schema(
+        summary="Подписаться или отписаться от курса",
+        description="Переключает состояние подписки текущего пользователя на выбранный курс.",
+        request=None,
+        responses={status.HTTP_200_OK: SubscriptionToggleResponseSerializer},
+    )
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def subscription(self, request, pk=None):
         """

@@ -10,8 +10,25 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "paid_at", "course", "lesson", "amount", "method")
-    list_filter = ("method", "paid_at")
+    list_display = (
+        "id",
+        "user",
+        "paid_at",
+        "course",
+        "lesson",
+        "amount",
+        "method",
+        "stripe_session_id",
+        "stripe_status",
+    )
+    list_filter = ("method", "paid_at", "stripe_status")
     search_fields = ("user__email", "user__username", "course__title", "lesson__title")
     autocomplete_fields = ("user", "course", "lesson")  # теперь будет работать
     ordering = ("-paid_at", "-id")
+    readonly_fields = (
+        "stripe_product_id",
+        "stripe_price_id",
+        "stripe_session_id",
+        "stripe_checkout_url",
+        "stripe_status",
+    )

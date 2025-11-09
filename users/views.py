@@ -1,9 +1,21 @@
-from rest_framework import viewsets, generics, permissions
-from users.models import User, Payment
-from users.permissions import IsSelfOrAdmin
-from users.serializers import UserSerializer, PaymentSerializer, RegisterSerializer
+from django.core.exceptions import ImproperlyConfigured
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from rest_framework import generics, permissions, viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter
+from rest_framework.response import Response
+from stripe.error import StripeError
+
+from users.models import Payment, User
+from users.permissions import IsSelfOrAdmin
+from users.serializers import (
+    PaymentSerializer,
+    RegisterSerializer,
+    UserPublicSerializer,
+    UserSerializer,
+)
+from users.services import create_stripe_session
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -44,30 +56,115 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+@extend_schema_view(
+    post=extend_schema(
+        summary="Создать платёж и получить ссылку на оплату Stripe",
+        description=(
+            "Создаёт платёж в системе и инициирует сессию Stripe Checkout."
+            " В ответе будет ссылка на оплату (поле `stripe_checkout_url`)."
+        ),
+        responses=PaymentSerializer,
+    )
+)
 class PaymentCreateAPIView(generics.CreateAPIView):
     serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        payment = serializer.save(user=self.request.user, method=Payment.Method.STRIPE)
+
+        target = payment.course or payment.lesson
+        name = getattr(target, "title", f"Оплата #{payment.pk}")
+        description = getattr(target, "description", "") or ""
+        metadata = {"payment_id": str(payment.pk)}
+
+        try:
+            session_data = create_stripe_session(
+                name=name,
+                description=description,
+                amount=payment.amount,
+                metadata=metadata,
+            )
+        except (StripeError, ImproperlyConfigured) as exc:
+            raise ValidationError({"stripe": str(exc)}) from exc
+
+        payment.stripe_product_id = session_data.product_id
+        payment.stripe_price_id = session_data.price_id
+        payment.stripe_session_id = session_data.session_id
+        payment.stripe_checkout_url = session_data.checkout_url or ""
+        payment.stripe_status = session_data.session.get("status", "")
+        payment.save(
+            update_fields=[
+                "stripe_product_id",
+                "stripe_price_id",
+                "stripe_session_id",
+                "stripe_checkout_url",
+                "stripe_status",
+            ]
+        )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="Список платежей",
+        parameters=[
+            OpenApiParameter(
+                name="course",
+                location=OpenApiParameter.QUERY,
+                type=int,
+                description="Фильтрация по ID курса",
+            ),
+            OpenApiParameter(
+                name="method",
+                location=OpenApiParameter.QUERY,
+                type=str,
+                description="Фильтрация по способу оплаты",
+            ),
+            OpenApiParameter(
+                name="ordering",
+                location=OpenApiParameter.QUERY,
+                type=str,
+                description="Сортировка по дате оплаты (paid_at)",
+            ),
+        ],
+        responses=PaymentSerializer,
+    )
+)
 class PaymentListAPIView(generics.ListAPIView):
     serializer_class = PaymentSerializer
     queryset = Payment.objects.select_related("user", "course", "lesson").all()
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ('course', 'method')
-    ordering_fields = ('paid_at',)
+    filterset_fields = ("course", "method")
+    ordering_fields = ("paid_at",)
     ordering = ("-paid_at",)
 
+
+@extend_schema_view(
+    get=extend_schema(summary="Детали платежа", responses=PaymentSerializer)
+)
 class PaymentRetrieveAPIView(generics.RetrieveAPIView):
     serializer_class = PaymentSerializer
     queryset = Payment.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
 
 
+@extend_schema_view(
+    patch=extend_schema(summary="Обновить платёж", responses=PaymentSerializer),
+    put=extend_schema(summary="Заменить платёж", responses=PaymentSerializer),
+)
 class PaymentUpdateAPIView(generics.UpdateAPIView):
     serializer_class = PaymentSerializer
     queryset = Payment.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
 
 
+@extend_schema_view(
+    delete=extend_schema(summary="Удалить платёж")
+)
 class PaymentDestroyAPIView(generics.DestroyAPIView):
     queryset = Payment.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class RegisterAPIView(generics.CreateAPIView):
