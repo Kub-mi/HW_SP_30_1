@@ -1,11 +1,13 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 class Course(models.Model):
     title = models.CharField(max_length=150, verbose_name='название')
     preview = models.ImageField(upload_to='courses/', blank=True, null=True, verbose_name='превью')
     description = models.TextField(verbose_name='описание')
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='courses', null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='обновлено')
 
     def __str__(self):
         return f'{self.title}'
@@ -26,6 +28,11 @@ class Lesson(models.Model):
 
     def __str__(self):
         return f'{self.title}'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.course_id:
+            Course.objects.filter(pk=self.course_id).update(updated_at=timezone.now())
 
     class Meta:
         verbose_name = 'урок'

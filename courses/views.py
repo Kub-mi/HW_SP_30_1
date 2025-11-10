@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from rest_framework import viewsets, generics, permissions, status
 from drf_spectacular.utils import extend_schema
 
@@ -6,15 +8,29 @@ from courses.serializers import CourseSerializer, LessonSerializer, Subscription
 from django.db.models import Count, Prefetch, Exists, OuterRef
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.utils import timezone
 
 from .models import Course, Lesson, Subscription
 from .paginators import DefaultPagination
+from .tasks import send_course_update_notifications
 
 
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all().order_by('id')
     serializer_class = CourseSerializer
     pagination_class = DefaultPagination
+
+    def perform_update(self, serializer):
+        previous_updated_at = getattr(serializer.instance, "updated_at", None)
+        course = serializer.save()
+
+        should_notify = True
+        if previous_updated_at is not None:
+            elapsed = timezone.now() - previous_updated_at
+            should_notify = elapsed >= timedelta(hours=4)
+
+        if should_notify and course.subscriptions.exists():
+            send_course_update_notifications.delay(course.pk)
 
     def get_permissions(self):
         # Базовое требование: JWT
